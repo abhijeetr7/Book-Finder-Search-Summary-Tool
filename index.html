@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Finder + Search Summary</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+        }
+        .book-card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .book-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.6); /* Black w/ opacity */
+            backdrop-filter: blur(5px); /* Frosted glass effect */
+            -webkit-backdrop-filter: blur(5px);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: linear-gradient(135deg, #ffffff, #f0f8ff); /* Subtle gradient */
+            margin: auto;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+            position: relative;
+            animation: fadeInScale 0.3s ease-out;
+        }
+        .close-button {
+            color: #aaa;
+            position: absolute;
+            top: 15px;
+            right: 25px;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: #333;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .read-later-btn {
+            background-color: #4CAF50; /* Green */
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            transition: background-color 0.2s ease;
+        }
+        .read-later-btn:hover {
+            background-color: #45a049;
+        }
+        .remove-read-later-btn {
+            background-color: #f44336; /* Red */
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            transition: background-color 0.2s ease;
+        }
+        .remove-read-later-btn:hover {
+            background-color: #da190b;
+        }
+
+        /* Animations */
+        @keyframes fadeInScale {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        /* Responsive adjustments */
+        @media (min-width: 768px) {
+            .modal-content {
+                max-width: 700px;
+            }
+        }
+        @media (max-width: 640px) {
+            .book-card {
+                flex-direction: column;
+                text-align: center;
+            }
+            .book-card img {
+                margin: 0 auto 1rem auto;
+            }
+        }
+
+        /* Scroll to Top Button */
+        #scroll-to-top-btn {
+            display: none; /* Hidden by default */
+            position: fixed; /* Fixed position */
+            bottom: 20px; /* Place at the bottom */
+            right: 20px; /* Place at the right */
+            z-index: 999; /* High z-index to be on top */
+            background-color: #4CAF50; /* Green background */
+            color: white; /* White text */
+            border: none; /* No border */
+            border-radius: 50%; /* Circular button */
+            width: 50px; /* Width and height for circular shape */
+            height: 50px;
+            font-size: 24px; /* Icon size */
+            cursor: pointer; /* Pointer cursor on hover */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Subtle shadow */
+            transition: background-color 0.3s, transform 0.2s; /* Smooth transitions */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #scroll-to-top-btn:hover {
+            background-color: #45a049; /* Darker green on hover */
+            transform: translateY(-2px); /* Slight lift on hover */
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-7xl mx-auto bg-white p-6 md:p-10 rounded-2xl shadow-xl border border-gray-200">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-gray-800 mb-2">📚 Book Finder</h1>
+            <p class="text-lg text-gray-600">Discover your next great read!</p>
+        </header>
+
+        <!-- Search Section -->
+        <section class="mb-10 p-6 bg-blue-50 rounded-xl shadow-inner flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-4 relative">
+            <input type="text" id="search-input" placeholder="Search by title, author, or genre..."
+                   class="flex-grow p-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg pr-10">
+            <button id="clear-search-button" class="absolute right-32 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none hidden">
+                &times;
+            </button>
+            <select id="search-type" class="p-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg bg-white">
+                <option value="intitle">Title</option>
+                <option value="inauthor">Author</option>
+                <option value="subject">Genre</option>
+            </select>
+            <button id="search-button"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                Search Books
+            </button>
+        </section>
+
+        <!-- Loading Indicator -->
+        <div id="loading-indicator" class="text-center text-blue-600 text-xl font-semibold hidden mb-8">
+            Searching for books...
+        </div>
+
+        <!-- Search Results Section -->
+        <section class="mb-10">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 border-b-2 pb-2 border-blue-200">Search Results</h2>
+            <div id="results-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Book cards will be injected here -->
+                <p id="no-results-message" class="text-gray-500 text-center col-span-full hidden">No books found. Try a different search term!</p>
+            </div>
+        </section>
+
+        <!-- Read Later List Section -->
+        <section>
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 border-b-2 pb-2 border-blue-200">My Read Later List</h2>
+            <div id="read-later-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Read Later book cards will be injected here -->
+                <p id="empty-read-later-message" class="text-gray-500 text-center col-span-full">Your "Read Later" list is empty. Add some books!</p>
+            </div>
+        </section>
+    </div>
+
+    <!-- Book Details Modal -->
+    <div id="book-details-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <div id="modal-content-body" class="flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-8">
+                <!-- Book details will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Scroll to Top Button -->
+    <button id="scroll-to-top-btn" title="Go to top">↑</button>
+
+    <script>
+        const searchInput = document.getElementById('search-input');
+        const searchType = document.getElementById('search-type');
+        const searchButton = document.getElementById('search-button');
+        const clearSearchButton = document.getElementById('clear-search-button');
+        const resultsContainer = document.getElementById('results-container');
+        const readLaterContainer = document.getElementById('read-later-container');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const noResultsMessage = document.getElementById('no-results-message');
+        const emptyReadLaterMessage = document.getElementById('empty-read-later-message');
+
+        const bookDetailsModal = document.getElementById('book-details-modal');
+        const modalContentBody = document.getElementById('modal-content-body');
+        const closeButton = document.querySelector('.close-button');
+        const scrollToTopBtn = document.getElementById('scroll-to-top-btn');
+
+        // Google Books API Base URL
+        const GOOGLE_BOOKS_API_BASE_URL = 'https://www.googleapis.com/books/v1/volumes';
+
+        // Function to fetch books from Google Books API
+        async function fetchBooks(query, type = 'intitle') {
+            if (!query.trim()) {
+                resultsContainer.innerHTML = ''; // Clear results if query is empty
+                noResultsMessage.classList.remove('hidden');
+                return [];
+            }
+
+            loadingIndicator.classList.remove('hidden');
+            resultsContainer.innerHTML = ''; // Clear previous results
+            noResultsMessage.classList.add('hidden');
+
+            try {
+                const response = await fetch(`${GOOGLE_BOOKS_API_BASE_URL}?q=${type}:${encodeURIComponent(query)}&maxResults=20`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                return data.items || [];
+            } catch (error) {
+                console.error("Error fetching books:", error);
+                // Display a user-friendly error message
+                resultsContainer.innerHTML = '<p class="text-red-500 text-center col-span-full">Failed to load books. Please try again later.</p>';
+                return [];
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+        // Function to render a single book card
+        function renderBookCard(book, isReadLater = false) {
+            const volumeInfo = book.volumeInfo;
+            const id = book.id;
+            const title = volumeInfo.title || 'No Title Available';
+            const authors = volumeInfo.authors ? volumeInfo.authors.join(', ') : 'Unknown Author';
+            const thumbnailUrl = volumeInfo.imageLinks?.thumbnail || 'https://placehold.co/128x192/CCDDEE/333?text=No+Cover'; // Updated placeholder
+            const averageRating = volumeInfo.averageRating ? `${volumeInfo.averageRating} / 5` : 'N/A';
+
+            const card = document.createElement('div');
+            card.className = 'book-card bg-white rounded-xl shadow-lg p-5 flex flex-col items-center text-center transition-all duration-300 ease-in-out hover:shadow-xl hover:scale-105 cursor-pointer border border-gray-100';
+            card.dataset.bookId = id; // Store book ID for later use
+
+            card.innerHTML = `
+                <img src="${thumbnailUrl}" alt="${title} Cover" class="w-32 h-48 object-cover rounded-md shadow-md mb-4" onerror="this.onerror=null;this.src='https://placehold.co/128x192/CCDDEE/333?text=No+Cover';">
+                <h3 class="text-xl font-semibold text-gray-800 mb-2">${title}</h3>
+                <p class="text-gray-600 text-sm mb-2">by ${authors}</p>
+                <div class="flex items-center mb-4">
+                    <span class="text-yellow-500 mr-1">★</span>
+                    <span class="text-gray-700 text-sm">${averageRating}</span>
+                </div>
+                ${isReadLater ? `
+                    <button class="remove-read-later-btn mt-auto" data-book-id="${id}">Remove</button>
+                ` : `
+                    <button class="read-later-btn mt-auto" data-book-id="${id}">Read Later</button>
+                `}
+            `;
+
+            // Event listener for showing book details on card click (excluding button clicks)
+            card.addEventListener('click', (event) => {
+                if (!event.target.closest('button')) { // Only open modal if not clicking a button
+                    showBookDetails(book);
+                }
+            });
+
+            // Event listener for "Read Later" or "Remove" button
+            const actionButton = card.querySelector(isReadLater ? '.remove-read-later-btn' : '.read-later-btn');
+            actionButton.addEventListener('click', (event) => {
+                event.stopPropagation(); // Prevent card click event from firing
+                if (isReadLater) {
+                    removeBookFromReadLater(id);
+                } else {
+                    addBookToReadLater(book);
+                }
+            });
+
+            return card;
+        }
+
+        // Function to render search results
+        function renderSearchResults(books) {
+            resultsContainer.innerHTML = ''; // Clear previous results
+            if (books.length === 0) {
+                noResultsMessage.classList.remove('hidden');
+            } else {
+                noResultsMessage.classList.add('hidden');
+                books.forEach(book => {
+                    resultsContainer.appendChild(renderBookCard(book, false)); // Pass false for isReadLater
+                });
+            }
+        }
+
+        // Function to show book details in a modal
+        function showBookDetails(book) {
+            const volumeInfo = book.volumeInfo;
+            const title = volumeInfo.title || 'No Title Available';
+            const authors = volumeInfo.authors ? volumeInfo.authors.join(', ') : 'Unknown Author';
+            const description = volumeInfo.description || 'No description available.';
+            const thumbnailUrl = volumeInfo.imageLinks?.large || volumeInfo.imageLinks?.medium || volumeInfo.imageLinks?.small || volumeInfo.imageLinks?.thumbnail || 'https://placehold.co/200x300/CCDDEE/333?text=No+Cover'; // Updated placeholder
+            const publishedDate = volumeInfo.publishedDate || 'N/A';
+            const pageCount = volumeInfo.pageCount || 'N/A';
+            const categories = volumeInfo.categories ? volumeInfo.categories.join(', ') : 'N/A';
+            const averageRating = volumeInfo.averageRating ? `${volumeInfo.averageRating} / 5 (${volumeInfo.ratingsCount || 0} ratings)` : 'N/A';
+            const previewLink = volumeInfo.previewLink || '#';
+            const infoLink = volumeInfo.infoLink || '#';
+
+            modalContentBody.innerHTML = `
+                <img src="${thumbnailUrl}" alt="${title} Cover" class="w-48 h-auto object-cover rounded-lg shadow-lg flex-shrink-0" onerror="this.onerror=null;this.src='https://placehold.co/200x300/CCDDEE/333?text=No+Cover';">
+                <div class="flex flex-col flex-grow">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-2">${title}</h2>
+                    <p class="text-xl text-gray-700 mb-2">by ${authors}</p>
+                    <p class="text-gray-600 mb-1"><strong class="font-medium">Published:</strong> ${publishedDate}</p>
+                    <p class="text-gray-600 mb-1"><strong class="font-medium">Pages:</strong> ${pageCount}</p>
+                    <p class="text-gray-600 mb-1"><strong class="font-medium">Categories:</strong> ${categories}</p>
+                    <div class="flex items-center mb-4">
+                        <span class="text-yellow-500 text-lg mr-1">★</span>
+                        <span class="text-gray-700 text-md">${averageRating}</span>
+                    </div>
+                    <p class="text-gray-800 text-base leading-relaxed mb-6">${description.length > 500 ? description.substring(0, 500) + '...' : description}</p>
+                    <div class="flex flex-wrap gap-3 mt-auto">
+                        <a href="${previewLink}" target="_blank" rel="noopener noreferrer"
+                           class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                            Read Preview
+                        </a>
+                        <a href="${infoLink}" target="_blank" rel="noopener noreferrer"
+                           class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                            More Info
+                        </a>
+                        ${isBookInReadLater(book.id) ? `
+                            <button class="remove-read-later-btn py-2 px-4">Remove from Read Later</button>
+                        ` : `
+                            <button class="read-later-btn py-2 px-4" data-book-id="${book.id}">Add to Read Later</button>
+                        `}
+                    </div>
+                </div>
+            `;
+
+            // Add event listener for the "Add/Remove to Read Later" button in the modal
+            const modalActionButton = modalContentBody.querySelector('.read-later-btn, .remove-read-later-btn');
+            if (modalActionButton) {
+                modalActionButton.addEventListener('click', () => {
+                    if (isBookInReadLater(book.id)) {
+                        removeBookFromReadLater(book.id);
+                    } else {
+                        addBookToReadLater(book);
+                    }
+                    // Update button text/class in modal immediately after action
+                    updateModalActionButton(book.id);
+                });
+            }
+
+            bookDetailsModal.style.display = 'flex'; // Show the modal
+        }
+
+        // Helper to update the button in the modal
+        function updateModalActionButton(bookId) {
+            const modalActionButton = modalContentBody.querySelector('.read-later-btn, .remove-read-later-btn');
+            if (modalActionButton) {
+                if (isBookInReadLater(bookId)) {
+                    modalActionButton.textContent = 'Remove from Read Later';
+                    modalActionButton.classList.remove('read-later-btn');
+                    modalActionButton.classList.add('remove-read-later-btn');
+                } else {
+                    modalActionButton.textContent = 'Add to Read Later';
+                    modalActionButton.classList.remove('remove-read-later-btn');
+                    modalActionButton.classList.add('read-later-btn');
+                }
+            }
+        }
+
+
+        // Function to close the modal
+        function closeModal() {
+            bookDetailsModal.style.display = 'none';
+        }
+
+        // Event listeners for modal
+        closeButton.addEventListener('click', closeModal);
+        window.addEventListener('click', (event) => {
+            if (event.target === bookDetailsModal) {
+                closeModal();
+            }
+        });
+
+        // Read Later Functionality
+        let readLaterBooks = JSON.parse(localStorage.getItem('readLaterBooks')) || [];
+
+        function saveReadLaterBooks() {
+            localStorage.setItem('readLaterBooks', JSON.stringify(readLaterBooks));
+            renderReadLaterList(); // Re-render the list after saving
+        }
+
+        function isBookInReadLater(bookId) {
+            return readLaterBooks.some(book => book.id === bookId);
+        }
+
+        function addBookToReadLater(book) {
+            if (!isBookInReadLater(book.id)) {
+                readLaterBooks.push(book);
+                saveReadLaterBooks();
+                alertMessage('Book added to "Read Later" list!', 'success');
+            } else {
+                alertMessage('This book is already in your "Read Later" list.', 'info');
+            }
+        }
+
+        function removeBookFromReadLater(bookId) {
+            readLaterBooks = readLaterBooks.filter(book => book.id !== bookId);
+            saveReadLaterBooks();
+            alertMessage('Book removed from "Read Later" list.', 'info');
+        }
+
+        function renderReadLaterList() {
+            readLaterContainer.innerHTML = ''; // Clear previous list
+            if (readLaterBooks.length === 0) {
+                emptyReadLaterMessage.classList.remove('hidden');
+            } else {
+                emptyReadLaterMessage.classList.add('hidden');
+                readLaterBooks.forEach(book => {
+                    readLaterContainer.appendChild(renderBookCard(book, true)); // Pass true for isReadLater
+                });
+            }
+        }
+
+        // Custom Alert Message (instead of alert())
+        function alertMessage(message, type = 'info') {
+            const existingAlert = document.getElementById('custom-alert');
+            if (existingAlert) existingAlert.remove();
+
+            const alertDiv = document.createElement('div');
+            alertDiv.id = 'custom-alert';
+            alertDiv.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg text-white z-[1001] transition-all duration-300 ease-in-out transform translate-x-full opacity-0`;
+
+            if (type === 'success') {
+                alertDiv.classList.add('bg-green-500');
+            } else if (type === 'error') {
+                alertDiv.classList.add('bg-red-500');
+            } else { // info
+                alertDiv.classList.add('bg-blue-500');
+            }
+
+            alertDiv.textContent = message;
+            document.body.appendChild(alertDiv);
+
+            // Animate in
+            setTimeout(() => {
+                alertDiv.classList.remove('translate-x-full', 'opacity-0');
+                alertDiv.classList.add('translate-x-0', 'opacity-100');
+            }, 10);
+
+            // Animate out and remove after a few seconds
+            setTimeout(() => {
+                alertDiv.classList.remove('translate-x-0', 'opacity-100');
+                alertDiv.classList.add('translate-x-full', 'opacity-0');
+                alertDiv.addEventListener('transitionend', () => alertDiv.remove());
+            }, 3000);
+        }
+
+
+        // Event Listener for Search Button
+        searchButton.addEventListener('click', async () => {
+            const query = searchInput.value.trim();
+            const type = searchType.value;
+            const books = await fetchBooks(query, type);
+            renderSearchResults(books);
+        });
+
+        // Allow searching by pressing Enter key in the input field
+        searchInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                searchButton.click();
+            }
+        });
+
+        // Clear Search Input Button
+        clearSearchButton.addEventListener('click', () => {
+            searchInput.value = '';
+            clearSearchButton.classList.add('hidden');
+            resultsContainer.innerHTML = ''; // Clear search results
+            noResultsMessage.classList.remove('hidden'); // Show no results message
+        });
+
+        searchInput.addEventListener('input', () => {
+            if (searchInput.value.trim() !== '') {
+                clearSearchButton.classList.remove('hidden');
+            } else {
+                clearSearchButton.classList.add('hidden');
+            }
+        });
+
+        // Scroll to Top Button Logic
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 200) { // Show button after scrolling 200px
+                scrollToTopBtn.style.display = 'flex';
+            } else {
+                scrollToTopBtn.style.display = 'none';
+            }
+        });
+
+        scrollToTopBtn.addEventListener('click', () => {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth' // Smooth scroll animation
+            });
+        });
+
+
+        // Initial render of Read Later list on page load
+        document.addEventListener('DOMContentLoaded', renderReadLaterList);
+
+    </script>
+</body>
+</html>
